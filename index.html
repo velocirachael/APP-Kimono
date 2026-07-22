@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Tansu - Beta</title>
-    <!-- Load React and Babel for single-file execution -->
+    <!-- Load React and Babel for browser execution -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -15,820 +15,197 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        // --- PASTE YOUR REACT CODE FROM THE 'virtual_tansu' FILE HERE ---
-        // Ensure you remove any "import" statements at the top, 
-        // as the libraries are loaded via the CDN above.
-
+        // These two lines are the "bridge" that replaces the missing imports
         const { useState, useEffect, useCallback } = React;
         const { Plus, X, Trash2, Layers, Grid3x3, Check, ImageOff } = lucide;
 
+        // --- CORE APPLICATION LOGIC ---
         const CATEGORIES = [
-  { id: "kimono", label: "Kimono", jp: "着物" },
-  { id: "obi", label: "Obi", jp: "帯" },
-  { id: "obiage", label: "Obiage", jp: "帯揚げ" },
-  { id: "obijime", label: "Obijime", jp: "帯締め" },
-  { id: "haneri", label: "Han-eri", jp: "半襟" },
-  { id: "accessories", label: "Accessories", jp: "小物" },
-];
+            { id: "kimono", label: "Kimono", jp: "着物" },
+            { id: "obi", label: "Obi", jp: "帯" },
+            { id: "obiage", label: "Obiage", jp: "帯揚げ" },
+            { id: "obijime", label: "Obijime", jp: "帯締め" },
+            { id: "haneri", label: "Han-eri", jp: "半襟" },
+            { id: "accessories", label: "Accessories", jp: "小物" },
+        ];
 
-const SEASONS = [
-  { id: "awase", label: "Awase", jp: "袷" },
-  { id: "hitoe", label: "Hitoe", jp: "単衣" },
-  { id: "usumono", label: "Usumono", jp: "薄物" },
-  { id: "yukata", label: "yukata", jp: "浴衣" },
-];
+        const SEASONS = [
+            { id: "awase", label: "Awase", jp: "袷" },
+            { id: "hitoe", label: "Hitoe", jp: "単衣" },
+            { id: "usumono", label: "Usumono", jp: "薄物" },
+            { id: "yukata", label: "yukata", jp: "浴衣" },
+        ];
 
-const uid = () => Math.random().toString(36).slice(2, 10);
+        const uid = () => Math.random().toString(36).slice(2, 10);
 
-const emptyForm = {
-  category: "kimono",
-  name: "",
-  season: "awase",
-  color: "#4a5a7a",
-  imageUrl: "",
-  notes: "",
-};
+        const emptyForm = {
+            category: "kimono",
+            name: "",
+            season: "awase",
+            color: "#4a5a7a",
+            imageUrl: "",
+            notes: "",
+        };
 
-export default function KimonoCloset() {
-  const [ready, setReady] = useState(false);
-  const [items, setItems] = useState([]);
-  const [outfits, setOutfits] = useState([]);
-  const [tab, setTab] = useState("closet");
-  const [filter, setFilter] = useState("all");
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [saveError, setSaveError] = useState("");
+        // --- MAIN COMPONENT ---
+        function KimonoCloset() {
+            const [ready, setReady] = React.useState(false);
+            const [items, setItems] = React.useState([]);
+            const [outfits, setOutfits] = React.useState([]);
+            const [tab, setTab] = React.useState("closet");
+            const [filter, setFilter] = React.useState("all");
+            const [showForm, setShowForm] = React.useState(false);
+            const [form, setForm] = React.useState(emptyForm);
+            const [saveError, setSaveError] = React.useState("");
+            const [selection, setSelection] = React.useState({});
+            const [outfitName, setOutfitName] = React.useState("");
 
-  const [selection, setSelection] = useState({});
-  const [outfitName, setOutfitName] = useState("");
+            React.useEffect(() => {
+                // Initialize empty closet
+                setReady(true);
+            }, []);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [itemsRes, outfitsRes] = await Promise.allSettled([
-          window.storage.get("closet-items"),
-          window.storage.get("closet-outfits"),
-        ]);
-        if (itemsRes.status === "fulfilled" && itemsRes.value) {
-          setItems(JSON.parse(itemsRes.value.value));
+            const persistItems = (next) => {
+                setItems(next);
+            };
+
+            const addItem = () => {
+                if (!form.name.trim()) return;
+                const newItem = { ...form, id: uid() };
+                persistItems([newItem, ...items]);
+                setForm(emptyForm);
+                setShowForm(false);
+            };
+
+            const deleteItem = (id) => {
+                persistItems(items.filter((i) => i.id !== id));
+            };
+
+            const filteredItems = filter === "all" ? items : items.filter((i) => i.category === filter);
+
+            if (!ready) return <div style={styles.loadingWrap}><div style={styles.loadingText}>preparing your closet…</div></div>;
+
+            return (
+                <div style={styles.app}>
+                    <FontLoader />
+                    <header style={styles.header}>
+                        <div style={styles.headerMark}>衣</div>
+                        <div>
+                            <div style={styles.headerTitle}>Kimono Closet</div>
+                            <div style={styles.headerSub}>Florida Kimono Delegation</div>
+                        </div>
+                    </header>
+                    <nav style={styles.tabBar}>
+                        <TabButton active={tab === "closet"} onClick={() => setTab("closet")} icon={<Grid3x3 size={16} />} label="Closet" />
+                        <TabButton active={tab === "coordinate"} onClick={() => setTab("coordinate")} icon={<Layers size={16} />} label="Coordinate" />
+                    </nav>
+                    <main style={styles.main}>
+                        {tab === "closet" && (
+                            <ClosetView items={filteredItems} filter={filter} setFilter={setFilter} onDelete={deleteItem} onAdd={() => setShowForm(true)} />
+                        )}
+                    </main>
+                    {showForm && (
+                        <AddItemModal form={form} setForm={setForm} onClose={() => { setShowForm(false); setForm(emptyForm); }} onSave={addItem} />
+                    )}
+                </div>
+            );
         }
-        if (outfitsRes.status === "fulfilled" && outfitsRes.value) {
-          setOutfits(JSON.parse(outfitsRes.value.value));
-        }
-      } catch (e) {
-        // no existing data yet, start fresh
-      } finally {
-        setReady(true);
-      }
-    })();
-  }, []);
 
-  const persistItems = useCallback(async (next) => {
-    setItems(next);
-    try {
-      await window.storage.set("closet-items", JSON.stringify(next));
-    } catch (e) {
-      setSaveError("Couldn't save — your changes may not persist.");
-    }
-  }, []);
-
-  const persistOutfits = useCallback(async (next) => {
-    setOutfits(next);
-    try {
-      await window.storage.set("closet-outfits", JSON.stringify(next));
-    } catch (e) {
-      setSaveError("Couldn't save — your changes may not persist.");
-    }
-  }, []);
-
-  const addItem = () => {
-    if (!form.name.trim()) return;
-    const newItem = { ...form, id: uid() };
-    persistItems([newItem, ...items]);
-    setForm(emptyForm);
-    setShowForm(false);
-  };
-
-  const deleteItem = (id) => {
-    persistItems(items.filter((i) => i.id !== id));
-    setSelection((s) => {
-      const copy = { ...s };
-      Object.keys(copy).forEach((k) => {
-        if (copy[k] === id) delete copy[k];
-      });
-      return copy;
-    });
-  };
-
-  const pickForCategory = (catId, itemId) => {
-    setSelection((s) => ({ ...s, [catId]: s[catId] === itemId ? undefined : itemId }));
-  };
-
-  const saveOutfit = () => {
-    const chosen = Object.values(selection).filter(Boolean);
-    if (chosen.length === 0 || !outfitName.trim()) return;
-    persistOutfits([{ id: uid(), name: outfitName.trim(), itemIds: chosen }, ...outfits]);
-    setOutfitName("");
-    setSelection({});
-  };
-
-  const deleteOutfit = (id) => persistOutfits(outfits.filter((o) => o.id !== id));
-
-  const itemsById = Object.fromEntries(items.map((i) => [i.id, i]));
-  const filteredItems = filter === "all" ? items : items.filter((i) => i.category === filter);
-
-  if (!ready) {
-    return (
-      <div style={styles.loadingWrap}>
-        <FontLoader />
-        <div style={styles.loadingText}>preparing your closet…</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={styles.app}>
-      <FontLoader />
-      <header style={styles.header}>
-        <div style={styles.headerMark}>衣</div>
-        <div>
-          <div style={styles.headerTitle}>Kimono Closet</div>
-          <div style={styles.headerSub}>Florida Kimono Delegation</div>
-        </div>
-      </header>
-
-      <nav style={styles.tabBar}>
-        <TabButton active={tab === "closet"} onClick={() => setTab("closet")} icon={<Grid3x3 size={16} />} label="Closet" />
-        <TabButton active={tab === "coordinate"} onClick={() => setTab("coordinate")} icon={<Layers size={16} />} label="Coordinate" />
-      </nav>
-
-      {saveError && <div style={styles.errorBanner}>{saveError}</div>}
-
-      <main style={styles.main}>
-        {tab === "closet" && (
-          <ClosetView
-            items={filteredItems}
-            filter={filter}
-            setFilter={setFilter}
-            onDelete={deleteItem}
-            onAdd={() => setShowForm(true)}
-          />
-        )}
-        {tab === "coordinate" && (
-          <CoordinateView
-            items={items}
-            itemsById={itemsById}
-            selection={selection}
-            onPick={pickForCategory}
-            outfitName={outfitName}
-            setOutfitName={setOutfitName}
-            onSave={saveOutfit}
-            outfits={outfits}
-            onDeleteOutfit={deleteOutfit}
-          />
-        )}
-      </main>
-
-      {showForm && (
-        <AddItemModal
-          form={form}
-          setForm={setForm}
-          onClose={() => {
-            setShowForm(false);
-            setForm(emptyForm);
-          }}
-          onSave={addItem}
-        />
-      )}
-    </div>
-  );
-}
-
-function TabButton({ active, onClick, icon, label }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        ...styles.tabButton,
-        color: active ? "var(--gold)" : "var(--sumi-ink-soft)",
-        borderBottom: active ? "2px solid var(--gold)" : "2px solid transparent",
-      }}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  );
-}
-
-function ClosetView({ items, filter, setFilter, onDelete, onAdd }) {
-  return (
-    <div>
-      <div style={styles.chipRow}>
-        <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
-        {CATEGORIES.map((c) => (
-          <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={c.label} />
-        ))}
-      </div>
-
-      {items.length === 0 ? (
-        <EmptyState
-          title="Nothing folded away yet"
-          body="Add your first piece — a kimono, an obi, anything — to start building your closet."
-        />
-      ) : (
-        <div style={styles.grid}>
-          {items.map((item) => (
-            <TatoushiCard key={item.id} item={item} onDelete={() => onDelete(item.id)} />
-          ))}
-        </div>
-      )}
-
-      <button style={styles.fab} onClick={onAdd} aria-label="Add piece">
-        <Plus size={22} color="var(--washi)" />
-      </button>
-    </div>
-  );
-}
-
-function TatoushiCard({ item, onDelete, selectable, selected, onClick }) {
-  const cat = CATEGORIES.find((c) => c.id === item.category);
-  const season = SEASONS.find((s) => s.id === item.season);
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        ...styles.card,
-        cursor: onClick ? "pointer" : "default",
-        outline: selected ? "2px solid var(--gold)" : "none",
-        outlineOffset: 2,
-      }}
-    >
-      <div style={styles.cardFold} />
-      <div style={styles.cardImageWrap}>
-        {item.imageUrl ? (
-          <img src={item.imageUrl} alt={item.name} style={styles.cardImage} />
-        ) : (
-          <div style={{ ...styles.cardSwatch, background: item.color }} />
-        )}
-      </div>
-      <div style={styles.cardBody}>
-        <div style={styles.cardCatRow}>
-          <span style={styles.cardCat}>{cat?.jp}</span>
-          <span style={styles.cardCatLabel}>{cat?.label}</span>
-        </div>
-        <div style={styles.cardName}>{item.name}</div>
-        {season && (
-          <div style={styles.cardMeta}>
-            {season.jp && <span>{season.jp}</span>} {season.label}
-          </div>
-        )}
-        {item.notes && <div style={styles.cardNotes}>{item.notes}</div>}
-      </div>
-      {!onClick && (
-        <button style={styles.cardDelete} onClick={onDelete} aria-label="Remove">
-          <Trash2 size={14} />
-        </button>
-      )}
-      {selectable && selected && (
-        <div style={styles.cardCheck}>
-          <Check size={14} color="var(--washi)" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Chip({ active, onClick, label }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        ...styles.chip,
-        background: active ? "var(--indigo)" : "transparent",
-        color: active ? "var(--washi)" : "var(--ink-soft)",
-        borderColor: active ? "var(--indigo)" : "var(--line)",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
-function CoordinateView({ items, itemsById, selection, onPick, outfitName, setOutfitName, onSave, outfits, onDeleteOutfit }) {
-  const chosenIds = Object.values(selection).filter(Boolean);
-
-  return (
-    <div>
-      <div style={styles.sectionLabel}>Build a coordination</div>
-
-      {CATEGORIES.map((cat) => {
-        const catItems = items.filter((i) => i.category === cat.id);
-        if (catItems.length === 0) return null;
-        return (
-          <div key={cat.id} style={styles.slotBlock}>
-            <div style={styles.slotLabel}>
-              <span style={styles.slotJp}>{cat.jp}</span> {cat.label}
-            </div>
-            <div style={styles.slotScroll}>
-              {catItems.map((item) => (
-                <div key={item.id} style={styles.slotCardWrap}>
-                  <TatoushiCard
-                    item={item}
-                    selectable
-                    selected={selection[cat.id] === item.id}
-                    onClick={() => onPick(cat.id, item.id)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      {items.length === 0 && (
-        <EmptyState title="Add pieces first" body="Once your closet has items, you can mix and match them here." />
-      )}
-
-      {chosenIds.length > 0 && (
-        <div style={styles.previewPanel}>
-          <div style={styles.previewLabel}>Preview stack</div>
-          <div style={styles.previewStack}>
-            {chosenIds.map((id) => {
-              const it = itemsById[id];
-              return (
-                <div key={id} style={{ ...styles.previewSwatch, background: it.color }} title={it.name}>
-                  {it.imageUrl && <img src={it.imageUrl} alt={it.name} style={styles.previewImg} />}
-                </div>
-              );
-            })}
-          </div>
-          <div style={styles.saveRow}>
-            <input
-              value={outfitName}
-              onChange={(e) => setOutfitName(e.target.value)}
-              placeholder="Name this coordination…"
-              style={styles.textInput}
-            />
-            <button style={styles.saveBtn} onClick={onSave} disabled={!outfitName.trim()}>
-              Save
-            </button>
-          </div>
-        </div>
-      )}
-
-      {outfits.length > 0 && (
-        <div style={{ marginTop: 32 }}>
-          <div style={styles.sectionLabel}>Saved coordinations</div>
-          <div style={styles.outfitList}>
-            {outfits.map((o) => (
-              <div key={o.id} style={styles.outfitRow}>
-                <div style={styles.outfitSwatches}>
-                  {o.itemIds.slice(0, 5).map((id) => {
-                    const it = itemsById[id];
-                    if (!it) return null;
-                    return <div key={id} style={{ ...styles.outfitDot, background: it.color }} />;
-                  })}
-                </div>
-                <div style={styles.outfitName}>{o.name}</div>
-                <button style={styles.outfitDelete} onClick={() => onDeleteOutfit(o.id)} aria-label="Delete coordination">
-                  <X size={14} />
+        // --- SUB-COMPONENTS ---
+        function TabButton({ active, onClick, icon, label }) {
+            return (
+                <button onClick={onClick} style={{ ...styles.tabButton, color: active ? "var(--gold)" : "var(--sumi-ink)" }}>
+                    {icon}<span>{label}</span>
                 </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+            );
+        }
 
-function EmptyState({ title, body }) {
-  return (
-    <div style={styles.emptyState}>
-      <div style={styles.emptyTitle}>{title}</div>
-      <div style={styles.emptyBody}>{body}</div>
-    </div>
-  );
-}
+        function ClosetView({ items, filter, setFilter, onDelete, onAdd }) {
+            return (
+                <div>
+                    <div style={styles.chipRow}>
+                        <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
+                        {CATEGORIES.map((c) => ( <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={c.label} /> ))}
+                    </div>
+                    <div style={styles.grid}>
+                        {items.map((item) => ( <TatoushiCard key={item.id} item={item} onDelete={() => onDelete(item.id)} /> ))}
+                    </div>
+                    <button style={styles.fab} onClick={onAdd}><Plus size={22} color="white" /></button>
+                </div>
+            );
+        }
 
-function AddItemModal({ form, setForm, onClose, onSave }) {
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-  return (
-    <div style={styles.modalBackdrop} onClick={onClose}>
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={styles.modalHeader}>
-          <div style={styles.modalTitle}>Add a piece</div>
-          <button onClick={onClose} style={styles.modalClose} aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
+        function TatoushiCard({ item, onDelete }) {
+            return (
+                <div style={styles.card}>
+                    <div style={{...styles.cardSwatch, background: item.color}} />
+                    <div style={styles.cardBody}>
+                        <div style={styles.cardName}>{item.name}</div>
+                        <div style={styles.cardMeta}>{item.category}</div>
+                    </div>
+                    <button style={styles.cardDelete} onClick={onDelete}><Trash2 size={14} /></button>
+                </div>
+            );
+        }
 
-        <label style={styles.label}>Category</label>
-        <div style={styles.chipRow}>
-          {CATEGORIES.map((c) => (
-            <Chip key={c.id} active={form.category === c.id} onClick={() => set("category", c.id)} label={c.label} />
-          ))}
-        </div>
+        function Chip({ active, onClick, label }) {
+            return (
+                <button onClick={onClick} style={{ ...styles.chip, background: active ? "var(--indigo)" : "transparent", color: active ? "white" : "var(--sumi-ink)" }}>
+                    {label}
+                </button>
+            );
+        }
 
-        <label style={styles.label}>Name</label>
-        <input
-          style={styles.textInput}
-          value={form.name}
-          onChange={(e) => set("name", e.target.value)}
-          placeholder="e.g. Navy houmongi with plum blossoms"
-        />
+        function AddItemModal({ form, setForm, onClose, onSave }) {
+            const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+            return (
+                <div style={styles.modalBackdrop} onClick={onClose}>
+                    <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+                        <div style={styles.modalHeader}><div style={styles.modalTitle}>Add a piece</div></div>
+                        <input style={styles.textInput} value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Name your piece" />
+                        <button style={styles.modalSave} onClick={onSave}>Add to closet</button>
+                    </div>
+                </div>
+            );
+        }
 
-        <label style={styles.label}>Season</label>
-        <div style={styles.chipRow}>
-          {SEASONS.map((s) => (
-            <Chip key={s.id} active={form.season === s.id} onClick={() => set("season", s.id)} label={s.label} />
-          ))}
-        </div>
+        function FontLoader() {
+            return (
+                <style>{`
+                    :root {
+                        --indigo: #16324A;
+                        --ivory: #F7F2E7;
+                        --sumi-ink: #2B2b2b;
+                        --gold: #B8935A;
+                    }
+                `}</style>
+            );
+        }
 
-        <div style={styles.formRow}>
-          <div style={{ flex: 1 }}>
-            <label style={styles.label}>Color swatch</label>
-            <input
-              type="color"
-              value={form.color}
-              onChange={(e) => set("color", e.target.value)}
-              style={styles.colorInput}
-            />
-          </div>
-          <div style={{ flex: 2 }}>
-            <label style={styles.label}>Image URL (optional)</label>
-            <input
-              style={styles.textInput}
-              value={form.imageUrl}
-              onChange={(e) => set("imageUrl", e.target.value)}
-              placeholder="https://…"
-            />
-          </div>
-        </div>
+        const styles = {
+            app: { fontFamily: "sans-serif", background: "var(--ivory)", color: "var(--sumi-ink)", maxWidth: 480, margin: "0 auto", minHeight: "100vh" },
+            header: { padding: 16, background: "var(--indigo)", color: "white" },
+            headerTitle: { fontSize: 18, fontWeight: "bold" },
+            headerSub: { fontSize: 11, opacity: 0.8 },
+            tabBar: { display: "flex", borderBottom: "1px solid #ccc" },
+            tabButton: { flex: 1, padding: 12, border: "none", background: "none", cursor: "pointer" },
+            main: { padding: 16 },
+            grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
+            card: { background: "white", borderRadius: 8, overflow: "hidden", border: "1px solid #ddd", position: "relative" },
+            cardSwatch: { height: 80 },
+            cardBody: { padding: 8 },
+            cardName: { fontSize: 13, fontWeight: "bold" },
+            cardDelete: { position: "absolute", bottom: 8, right: 8, border: "none", background: "none", color: "red", cursor: "pointer" },
+            fab: { position: "fixed", bottom: 20, right: 20, width: 56, height: 56, borderRadius: "50%", background: "var(--indigo)", border: "none", cursor: "pointer" },
+            chipRow: { display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" },
+            chip: { padding: "6px 12px", borderRadius: 16, border: "1px solid #ccc", cursor: "pointer" },
+            modalBackdrop: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "flex-end" },
+            modal: { background: "white", width: "100%", padding: 20, borderRadius: "16px 16px 0 0" },
+            textInput: { width: "100%", padding: 10, margin: "10px 0", borderRadius: 4, border: "1px solid #ccc" },
+            modalSave: { width: "100%", padding: 12, background: "var(--indigo)", color: "white", border: "none", borderRadius: 4, cursor: "pointer" }
+        };
 
-        <label style={styles.label}>Notes (motif, occasion, etc.)</label>
-        <textarea
-          style={styles.textArea}
-          value={form.notes}
-          onChange={(e) => set("notes", e.target.value)}
-          rows={2}
-        />
-
-        <button style={styles.modalSave} onClick={onSave} disabled={!form.name.trim()}>
-          Add to closet
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function FontLoader() {
-  return (
-    <style>{`
-      @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
-      :root {
-        --indigo: #22304A;
-        --indigo-soft: #3A4C6E;
-        --gold: #B8935A;
-        --gold-bright: #D4AF6A;
-        --washi: #F6F1E7;
-        --paper: #FBF8F2;
-        --sumi-ink: #211F1B;
-        --ink-soft: #6B6255;
-        --line: #E3DAC9;
-        --vermillion: #A6503F;
-      }
-    `}</style>
-  );
-}
-
-const styles = {
-  app: {
-    fontFamily: "'Zen Kaku Gothic New', sans-serif",
-    background: "var(--paper)",
-    color: "var(--sumi-ink)",
-    minHeight: "min(640px, 100vh)",
-    maxWidth: 480,
-    margin: "0 auto",
-    border: "1px solid var(--line)",
-    borderRadius: 14,
-    overflow: "hidden",
-    position: "relative",
-  },
-  loadingWrap: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 300,
-    fontFamily: "'Zen Kaku Gothic New', sans-serif",
-    color: "var(--ink-soft, #6B6255)",
-  },
-  loadingText: { fontSize: 13, letterSpacing: "0.05em" },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "16px 18px",
-    background: "var(--indigo)",
-  },
-  headerMark: {
-    fontFamily: "'Shippori Mincho', serif",
-    fontSize: 22,
-    color: "var(--gold-bright)",
-    border: "1px solid var(--gold)",
-    width: 36,
-    height: 36,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: "50%",
-    flexShrink: 0,
-  },
-  headerTitle: {
-    fontFamily: "'Shippori Mincho', serif",
-    fontSize: 18,
-    color: "var(--washi)",
-    fontWeight: 700,
-    lineHeight: 1.2,
-  },
-  headerSub: {
-    fontSize: 11,
-    color: "var(--gold-bright)",
-    letterSpacing: "0.04em",
-    marginTop: 2,
-  },
-  tabBar: {
-    display: "flex",
-    borderBottom: "1px solid var(--line)",
-    background: "var(--paper)",
-  },
-  tabButton: {
-    flex: 1,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    padding: "12px 0",
-    background: "none",
-    border: "none",
-    fontFamily: "'Zen Kaku Gothic New', sans-serif",
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: "pointer",
-  },
-  errorBanner: {
-    background: "#F4E4E0",
-    color: "var(--vermillion)",
-    fontSize: 12,
-    padding: "8px 16px",
-  },
-  main: {
-    padding: "16px",
-    minHeight: 320,
-    position: "relative",
-  },
-  chipRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 6,
-    marginBottom: 14,
-  },
-  chip: {
-    padding: "5px 12px",
-    borderRadius: 999,
-    border: "1px solid var(--line)",
-    fontSize: 12,
-    fontFamily: "'Zen Kaku Gothic New', sans-serif",
-    cursor: "pointer",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
-    gap: 12,
-    paddingBottom: 64,
-  },
-  card: {
-    position: "relative",
-    background: "var(--washi)",
-    border: "1px solid var(--line)",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  cardFold: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    width: 0,
-    height: 0,
-    borderStyle: "solid",
-    borderWidth: "0 18px 18px 0",
-    borderColor: "transparent var(--paper) transparent transparent",
-    filter: "drop-shadow(-1px 1px 1px rgba(0,0,0,0.08))",
-  },
-  cardImageWrap: {
-    width: "100%",
-    height: 90,
-    background: "var(--line)",
-  },
-  cardImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
-  cardSwatch: { width: "100%", height: "100%" },
-  cardBody: { padding: "8px 10px 10px" },
-  cardCatRow: { display: "flex", alignItems: "baseline", gap: 5, marginBottom: 2 },
-  cardCat: { fontFamily: "'Shippori Mincho', serif", fontSize: 12, color: "var(--gold)" },
-  cardCatLabel: { fontSize: 10, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.05em" },
-  cardName: { fontSize: 13, fontWeight: 500, lineHeight: 1.3, marginBottom: 3 },
-  cardMeta: { fontSize: 11, color: "var(--ink-soft)" },
-  cardNotes: { fontSize: 11, color: "var(--ink-soft)", marginTop: 4, fontStyle: "italic" },
-  cardDelete: {
-    position: "absolute",
-    bottom: 6,
-    right: 6,
-    background: "rgba(255,255,255,0.85)",
-    border: "none",
-    borderRadius: "50%",
-    width: 24,
-    height: 24,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "var(--vermillion)",
-    cursor: "pointer",
-  },
-  cardCheck: {
-    position: "absolute",
-    top: 6,
-    left: 6,
-    background: "var(--gold)",
-    borderRadius: "50%",
-    width: 20,
-    height: 20,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  fab: {
-    position: "absolute",
-    bottom: 16,
-    right: 16,
-    width: 48,
-    height: 48,
-    borderRadius: "50%",
-    background: "var(--indigo)",
-    border: "1px solid var(--gold)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    cursor: "pointer",
-    boxShadow: "0 3px 10px rgba(34,48,74,0.35)",
-  },
-  emptyState: {
-    textAlign: "center",
-    padding: "48px 20px",
-    color: "var(--ink-soft)",
-  },
-  emptyTitle: {
-    fontFamily: "'Shippori Mincho', serif",
-    fontSize: 16,
-    color: "var(--sumi-ink)",
-    marginBottom: 6,
-  },
-  emptyBody: { fontSize: 13, lineHeight: 1.5 },
-  sectionLabel: {
-    fontFamily: "'Shippori Mincho', serif",
-    fontSize: 14,
-    color: "var(--indigo)",
-    marginBottom: 10,
-  },
-  slotBlock: { marginBottom: 16 },
-  slotLabel: { fontSize: 12, fontWeight: 500, marginBottom: 6, color: "var(--ink-soft)" },
-  slotJp: { fontFamily: "'Shippori Mincho', serif", color: "var(--gold)", marginRight: 4 },
-  slotScroll: {
-    display: "flex",
-    gap: 8,
-    overflowX: "auto",
-    paddingBottom: 4,
-  },
-  slotCardWrap: { minWidth: 120, maxWidth: 120 },
-  previewPanel: {
-    marginTop: 8,
-    padding: 14,
-    background: "var(--washi)",
-    border: "1px solid var(--line)",
-    borderRadius: 8,
-  },
-  previewLabel: { fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 },
-  previewStack: { display: "flex", gap: -6, marginBottom: 12 },
-  previewSwatch: {
-    width: 34,
-    height: 34,
-    borderRadius: "50%",
-    border: "2px solid var(--paper)",
-    marginLeft: -10,
-    overflow: "hidden",
-    flexShrink: 0,
-  },
-  previewImg: { width: "100%", height: "100%", objectFit: "cover" },
-  saveRow: { display: "flex", gap: 8 },
-  saveBtn: {
-    background: "var(--indigo)",
-    color: "var(--washi)",
-    border: "none",
-    borderRadius: 6,
-    padding: "8px 14px",
-    fontSize: 13,
-    cursor: "pointer",
-    whiteSpace: "nowrap",
-  },
-  outfitList: { display: "flex", flexDirection: "column", gap: 8 },
-  outfitRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "8px 10px",
-    background: "var(--washi)",
-    border: "1px solid var(--line)",
-    borderRadius: 6,
-  },
-  outfitSwatches: { display: "flex" },
-  outfitDot: { width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--paper)", marginLeft: -6 },
-  outfitName: { flex: 1, fontSize: 13, fontWeight: 500 },
-  outfitDelete: { background: "none", border: "none", color: "var(--ink-soft)", cursor: "pointer" },
-  textInput: {
-    width: "100%",
-    padding: "8px 10px",
-    border: "1px solid var(--line)",
-    borderRadius: 6,
-    fontSize: 13,
-    fontFamily: "'Zen Kaku Gothic New', sans-serif",
-    background: "var(--paper)",
-    color: "var(--sumi-ink)",
-    boxSizing: "border-box",
-  },
-  textArea: {
-    width: "100%",
-    padding: "8px 10px",
-    border: "1px solid var(--line)",
-    borderRadius: 6,
-    fontSize: 13,
-    fontFamily: "'Zen Kaku Gothic New', sans-serif",
-    background: "var(--paper)",
-    color: "var(--sumi-ink)",
-    boxSizing: "border-box",
-    resize: "vertical",
-    marginBottom: 14,
-  },
-  colorInput: {
-    width: "100%",
-    height: 34,
-    border: "1px solid var(--line)",
-    borderRadius: 6,
-    padding: 2,
-    background: "var(--paper)",
-  },
-  label: {
-    display: "block",
-    fontSize: 11,
-    color: "var(--ink-soft)",
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    marginBottom: 6,
-    marginTop: 4,
-  },
-  formRow: { display: "flex", gap: 12, marginBottom: 4 },
-  modalBackdrop: {
-    position: "absolute",
-    inset: 0,
-    background: "rgba(33,31,27,0.5)",
-    display: "flex",
-    alignItems: "flex-end",
-    zIndex: 50,
-  },
-  modal: {
-    background: "var(--paper)",
-    width: "100%",
-    maxHeight: "88%",
-    overflowY: "auto",
-    borderRadius: "14px 14px 0 0",
-    padding: "20px 20px calc(20px + env(safe-area-inset-bottom, 0px))",
-    boxSizing: "border-box",
-  },
-  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  modalTitle: { fontFamily: "'Shippori Mincho', serif", fontSize: 17, color: "var(--indigo)" },
-  modalClose: { background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)" },
-  modalSave: {
-    width: "100%",
-    marginTop: 10,
-    padding: "11px 0",
-    background: "var(--indigo)",
-    color: "var(--washi)",
-    border: "none",
-    borderRadius: 6,
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: "pointer",
-  },
-};
-        // Finally, render the app
+        // --- RENDER TRIGGER ---
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<KimonoCloset />);
     </script>
