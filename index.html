@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Tansu - Beta</title>
+    <!-- Load React and Babel for single-file execution -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Load Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        import React, { useState, useEffect, useCallback } from "react";
+import { Plus, X, Trash2, Layers, Grid3x3, Check, ImageOff } from "lucide-react";
+
+        const { useState, useEffect, useCallback } = React;
+        const { Plus, X, Trash2, Layers, Grid3x3, Check, ImageOff } = lucide;
+
+        const CATEGORIES = [
+  { id: "kimono", label: "Kimono", jp: "着物" },
+  { id: "obi", label: "Obi", jp: "帯" },
+  { id: "obiage", label: "Obiage", jp: "帯揚げ" },
+  { id: "obijime", label: "Obijime", jp: "帯締め" },
+  { id: "haneri", label: "Han-eri", jp: "半襟" },
+  { id: "accessories", label: "Accessories", jp: "小物" },
+];
+
+const SEASONS = [
+  { id: "awase", label: "Awase", jp: "袷" },
+  { id: "hitoe", label: "Hitoe", jp: "単衣" },
+  { id: "usumono", label: "Usumono", jp: "薄物" },
+  { id: "yukata", label: "yukata", jp: "浴衣" },
+];
+
+const uid = () => Math.random().toString(36).slice(2, 10);
+
+const emptyForm = {
+  category: "kimono",
+  name: "",
+  season: "awase",
+  color: "#4a5a7a",
+  imageUrl: "",
+  notes: "",
+};
+
+export default function KimonoCloset() {
+  const [ready, setReady] = useState(false);
+  const [items, setItems] = useState([]);
+  const [outfits, setOutfits] = useState([]);
+  const [tab, setTab] = useState("closet");
+  const [filter, setFilter] = useState("all");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saveError, setSaveError] = useState("");
+
+  const [selection, setSelection] = useState({});
+  const [outfitName, setOutfitName] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [itemsRes, outfitsRes] = await Promise.allSettled([
+          window.storage.get("closet-items"),
+          window.storage.get("closet-outfits"),
+        ]);
+        if (itemsRes.status === "fulfilled" && itemsRes.value) {
+          setItems(JSON.parse(itemsRes.value.value));
+        }
+        if (outfitsRes.status === "fulfilled" && outfitsRes.value) {
+          setOutfits(JSON.parse(outfitsRes.value.value));
+        }
+      } catch (e) {
+        // no existing data yet, start fresh
+      } finally {
+        setReady(true);
+      }
+    })();
+  }, []);
+
+  const persistItems = useCallback(async (next) => {
+    setItems(next);
+    try {
+      await window.storage.set("closet-items", JSON.stringify(next));
+    } catch (e) {
+      setSaveError("Couldn't save — your changes may not persist.");
+    }
+  }, []);
+
+  const persistOutfits = useCallback(async (next) => {
+    setOutfits(next);
+    try {
+      await window.storage.set("closet-outfits", JSON.stringify(next));
+    } catch (e) {
+      setSaveError("Couldn't save — your changes may not persist.");
+    }
+  }, []);
+
+  const addItem = () => {
+    if (!form.name.trim()) return;
+    const newItem = { ...form, id: uid() };
+    persistItems([newItem, ...items]);
+    setForm(emptyForm);
+    setShowForm(false);
+  };
+
+  const deleteItem = (id) => {
+    persistItems(items.filter((i) => i.id !== id));
+    setSelection((s) => {
+      const copy = { ...s };
+      Object.keys(copy).forEach((k) => {
+        if (copy[k] === id) delete copy[k];
+      });
+      return copy;
+    });
+  };
+
+  const pickForCategory = (catId, itemId) => {
+    setSelection((s) => ({ ...s, [catId]: s[catId] === itemId ? undefined : itemId }));
+  };
+
+  const saveOutfit = () => {
+    const chosen = Object.values(selection).filter(Boolean);
+    if (chosen.length === 0 || !outfitName.trim()) return;
+    persistOutfits([{ id: uid(), name: outfitName.trim(), itemIds: chosen }, ...outfits]);
+    setOutfitName("");
+    setSelection({});
+  };
+
+  const deleteOutfit = (id) => persistOutfits(outfits.filter((o) => o.id !== id));
+
+  const itemsById = Object.fromEntries(items.map((i) => [i.id, i]));
+  const filteredItems = filter === "all" ? items : items.filter((i) => i.category === filter);
+
+  if (!ready) {
+    return (
+      <div style={styles.loadingWrap}>
+        <FontLoader />
+        <div style={styles.loadingText}>preparing your closet…</div>
+      </div>
+    );
+  }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<KimonoCloset />);
+    </script>
+</body>
+</html>
