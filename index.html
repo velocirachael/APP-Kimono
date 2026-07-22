@@ -1,146 +1,931 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Virtual Tansu - Beta</title>
-    <!-- 1. CDNs: Loading the React and Icon engines from the web -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Virtual Tansu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </head>
-<body style="margin: 0; background-color: #F7F2E7;">
-    <div id="root"></div>
+<body style="margin:0;">
+<div id="root"></div>
 
-    <script type="text/babel">
-        // 2. THE BRIDGE: Replaces your "import" lines for the browser
-        const { useState, useEffect, useCallback } = React;
-        const { Plus, X, Trash2, Layers, Grid3x3, Check, ImageOff } = lucide;
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
 
-        // 3. YOUR DATA: Using categories and seasons from your source code [1, 2]
-        const CATEGORIES = [
-            { id: "kimono", label: "Kimono", jp: "着物" },
-            { id: "obi", label: "Obi", jp: "帯" },
-            { id: "obiage", label: "Obiage", jp: "帯揚げ" },
-            { id: "obijime", label: "Obijime", jp: "帯締め" },
-            { id: "haneri", label: "Han-eri", jp: "半襟" },
-            { id: "accessories", label: "Accessories", jp: "小物" },
-        ];
+/* ---------- Inline SVG icons (replaces lucide-react, which needs a bundler) ---------- */
+function Icon({ path, size = 16, color = "currentColor", strokeWidth = 2 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      {path}
+    </svg>
+  );
+}
+const Plus = ({ size, color }) => <Icon size={size} color={color} path={<><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>} />;
+const X = ({ size, color }) => <Icon size={size} color={color} path={<><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>} />;
+const Trash2 = ({ size, color }) => <Icon size={size} color={color} path={<><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></>} />;
+const Layers = ({ size, color }) => <Icon size={size} color={color} path={<><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></>} />;
+const Grid3x3 = ({ size, color }) => <Icon size={size} color={color} path={<><rect x="3" y="3" width="18" height="18" rx="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="3" y1="15" x2="21" y2="15" /><line x1="9" y1="3" x2="9" y2="21" /><line x1="15" y1="3" x2="15" y2="21" /></>} />;
+const Check = ({ size, color }) => <Icon size={size} color={color} path={<polyline points="20 6 9 17 4 12" />} />;
 
-        const SEASONS = [
-            { id: "awase", label: "Awase", jp: "袷" },
-            { id: "hitoe", label: "Hitoe", jp: "単衣" },
-            { id: "usumono", label: "Usumono", jp: "薄物" },
-            { id: "yukata", label: "yukata", jp: "浴衣" },
-        ];
+/* ---------- Data ---------- */
+const CATEGORIES = [
+  { id: "kimono", label: "Kimono", jp: "着物" },
+  { id: "obi", label: "Obi", jp: "帯" },
+  { id: "obiage", label: "Obiage", jp: "帯揚げ" },
+  { id: "obijime", label: "Obijime", jp: "帯締め" },
+  { id: "haneri", label: "Han-eri", jp: "半襟" },
+  { id: "accessories", label: "Accessories", jp: "小物" },
+];
 
-        const uid = () => Math.random().toString(36).slice(2, 10);
+const SUBCATEGORY_FIELD_LABEL = {
+  kimono: "Season",
+  obi: "Obi style",
+  obiage: "Fabric / finish",
+  obijime: "Braid type",
+  haneri: "Fabric / finish",
+  accessories: "Item type",
+};
 
-        // 4. THE APP ENGINE
-        function KimonoCloset() {
-            const [ready, setReady] = useState(false);
-            const [items, setItems] = useState([]);
-            const [tab, setTab] = useState("closet");
-            const [filter, setFilter] = useState("all");
-            const [showForm, setShowForm] = useState(false);
-            const [name, setName] = useState("");
+const SUBCATEGORY_OPTIONS = {
+  kimono: [
+    { id: "awase", label: "Awase (lined)", jp: "袷" },
+    { id: "hitoe", label: "Hitoe (unlined)", jp: "単衣" },
+    { id: "usumono", label: "Usumono (sheer)", jp: "薄物" },
+    { id: "year-round", label: "Year-round", jp: "" },
+  ],
+  obi: [
+    { id: "fukuro", label: "Fukuro", jp: "袋帯" },
+    { id: "nagoya", label: "Nagoya", jp: "名古屋帯" },
+    { id: "fukuro-nagoya", label: "Fukuro Nagoya", jp: "袋名古屋帯" },
+    { id: "hanhaba", label: "Hanhaba", jp: "半幅帯" },
+    { id: "maru", label: "Maru", jp: "丸帯" },
+    { id: "kaku", label: "Kaku (men's)", jp: "角帯" },
+    { id: "heko", label: "Heko", jp: "兵児帯" },
+  ],
+  obiage: [
+    { id: "chirimen", label: "Chirimen", jp: "縮緬" },
+    { id: "rinzu", label: "Rinzu", jp: "綸子" },
+    { id: "shibori", label: "Shibori", jp: "絞り" },
+    { id: "ro", label: "Ro (summer)", jp: "絽" },
+    { id: "embroidered", label: "Embroidered", jp: "刺繍" },
+  ],
+  obijime: [
+    { id: "maru-kumihimo", label: "Maru kumihimo (round)", jp: "丸組" },
+    { id: "hira-kumihimo", label: "Hira kumihimo (flat)", jp: "平組" },
+    { id: "kaku-kumihimo", label: "Kaku kumihimo (square)", jp: "角組" },
+    { id: "edo-kumihimo", label: "Edo kumihimo", jp: "江戸組紐" },
+    { id: "with-obidome", label: "Set with obidome loop", jp: "" },
+  ],
+  haneri: [
+    { id: "shusu", label: "Shusu (satin)", jp: "繻子" },
+    { id: "chirimen", label: "Chirimen", jp: "縮緬" },
+    { id: "embroidered", label: "Embroidered", jp: "刺繍" },
+    { id: "ro", label: "Ro (summer gauze)", jp: "絽" },
+    { id: "beaded", label: "Beaded", jp: "" },
+  ],
+  accessories: [
+    { id: "tabi", label: "Tabi", jp: "足袋" },
+    { id: "zori", label: "Zori", jp: "草履" },
+    { id: "geta", label: "Geta", jp: "下駄" },
+    { id: "obidome", label: "Obidome", jp: "帯留め" },
+    { id: "kinchaku", label: "Kinchaku (bag)", jp: "巾着" },
+    { id: "haori", label: "Haori", jp: "羽織" },
+    { id: "michiyuki", label: "Michiyuki", jp: "道行" },
+    { id: "datejime", label: "Datejime", jp: "伊達締め" },
+    { id: "koshihimo", label: "Koshihimo", jp: "腰紐" },
+    { id: "eri-shin", label: "Eri shin (collar stiffener)", jp: "衿芯" },
+  ],
+};
 
-            // PERSISTENCE FIX: Replaces the crashing window.storage with browser localStorage [3]
-            useEffect(() => {
-                const saved = localStorage.getItem("tansu_closet_data");
-                if (saved) setItems(JSON.parse(saved));
-                setReady(true);
-            }, []);
+const uid = () => Math.random().toString(36).slice(2, 10);
 
-            const handleSave = () => {
-                if (!name.trim()) return;
-                const newItems = [{ id: uid(), name, category: "kimono", color: "#4a5a7a" }, ...items];
-                setItems(newItems);
-                localStorage.setItem("tansu_closet_data", JSON.stringify(newItems));
-                setName("");
-                setShowForm(false);
-            };
+const emptyForm = {
+  category: "kimono",
+  name: "",
+  subcategory: SUBCATEGORY_OPTIONS.kimono[0].id,
+  color: "#4a5a7a",
+  imageUrl: "",
+  notes: "",
+};
 
-            if (!ready) return <div style={{padding: 50, textAlign: 'center', color: '#2B2b2b'}}>Opening Tansu...</div>;
+/* ---------- localStorage keys (replaces window.storage, which only
+   exists inside Claude.ai's artifact preview, not on a real deployment) ---------- */
+const STORAGE_KEYS = { items: "kimono-closet-items", outfits: "kimono-closet-outfits" };
 
-            return (
-                <div style={styles.app}>
-                    <style>{`
-                        :root {
-                            --indigo: #16324A;
-                            --ivory: #F7F2E7;
-                            --sumi-ink: #2B2b2b;
-                            --gold: #B8935A;
-                        }
-                    `}</style>
-                    <header style={styles.header}>
-                        <div style={styles.headerMark}>衣</div>
-                        <div>
-                            <div style={{fontWeight: 'bold', fontSize: '18px'}}>Virtual Tansu</div>
-                            <div style={{fontSize: '11px', opacity: 0.8}}>Florida Kimono Delegation</div>
-                        </div>
-                    </header>
-                    
-                    <nav style={styles.tabBar}>
-                        <button onClick={() => setTab("closet")} style={{...styles.tabBtn, borderBottom: tab === 'closet' ? '2px solid var(--gold)' : 'none'}}>Closet</button>
-                        <button onClick={() => setTab("coord")} style={{...styles.tabBtn, borderBottom: tab === 'coord' ? '2px solid var(--gold)' : 'none'}}>Coordinate</button>
-                    </nav>
+function KimonoCloset() {
+  const [ready, setReady] = useState(false);
+  const [items, setItems] = useState([]);
+  const [outfits, setOutfits] = useState([]);
+  const [tab, setTab] = useState("closet");
+  const [filter, setFilter] = useState("all");
+  const [subFilter, setSubFilter] = useState("all");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saveError, setSaveError] = useState("");
 
-                    <main style={{padding: '20px'}}>
-                        <div style={{display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap'}}>
-                            <button onClick={() => setFilter("all")} style={styles.chip}>All</button>
-                            {CATEGORIES.map(c => (
-                                <button key={c.id} onClick={() => setFilter(c.id)} style={styles.chip}>{c.label}</button>
-                            ))}
-                        </div>
+  const [selection, setSelection] = useState({});
+  const [outfitName, setOutfitName] = useState("");
 
-                        <div style={styles.grid}>
-                            {items.filter(i => filter === "all" || i.category === filter).map(item => (
-                                <div key={item.id} style={styles.card}>
-                                    <div style={{height: '80px', background: item.color}} />
-                                    <div style={{padding: '10px', fontSize: '13px', fontWeight: '500'}}>{item.name}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </main>
+  useEffect(() => {
+    try {
+      const savedItems = localStorage.getItem(STORAGE_KEYS.items);
+      const savedOutfits = localStorage.getItem(STORAGE_KEYS.outfits);
+      if (savedItems) setItems(JSON.parse(savedItems));
+      if (savedOutfits) setOutfits(JSON.parse(savedOutfits));
+    } catch (e) {
+      // no existing data yet, start fresh
+    } finally {
+      setReady(true);
+    }
+  }, []);
 
-                    <button style={styles.fab} onClick={() => setShowForm(true)}><Plus color="white" /></button>
+  const persistItems = useCallback((next) => {
+    setItems(next);
+    try {
+      localStorage.setItem(STORAGE_KEYS.items, JSON.stringify(next));
+    } catch (e) {
+      setSaveError("Couldn't save — your changes may not persist.");
+    }
+  }, []);
 
-                    {showForm && (
-                        <div style={styles.modalOverlay}>
-                            <div style={styles.modal}>
-                                <h2 style={{marginTop: 0, fontFamily: 'serif'}}>Add to Closet</h2>
-                                <input style={styles.input} placeholder="Piece name (e.g. Silk Obi)" value={name} onChange={e => setName(e.target.value)} />
-                                <button style={styles.saveBtn} onClick={handleSave}>Save Piece</button>
-                                <button style={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
-                            </div>
-                        </div>
-                    )}
+  const persistOutfits = useCallback((next) => {
+    setOutfits(next);
+    try {
+      localStorage.setItem(STORAGE_KEYS.outfits, JSON.stringify(next));
+    } catch (e) {
+      setSaveError("Couldn't save — your changes may not persist.");
+    }
+  }, []);
+
+  const addItem = () => {
+    if (!form.name.trim()) return;
+    const newItem = { ...form, id: uid() };
+    persistItems([newItem, ...items]);
+    setForm(emptyForm);
+    setShowForm(false);
+  };
+
+  const deleteItem = (id) => {
+    persistItems(items.filter((i) => i.id !== id));
+    setSelection((s) => {
+      const copy = { ...s };
+      Object.keys(copy).forEach((k) => {
+        if (copy[k] === id) delete copy[k];
+      });
+      return copy;
+    });
+  };
+
+  const pickForCategory = (catId, itemId) => {
+    setSelection((s) => ({ ...s, [catId]: s[catId] === itemId ? undefined : itemId }));
+  };
+
+  const saveOutfit = () => {
+    const chosen = Object.values(selection).filter(Boolean);
+    if (chosen.length === 0 || !outfitName.trim()) return;
+    persistOutfits([{ id: uid(), name: outfitName.trim(), itemIds: chosen }, ...outfits]);
+    setOutfitName("");
+    setSelection({});
+  };
+
+  const deleteOutfit = (id) => persistOutfits(outfits.filter((o) => o.id !== id));
+
+  const itemsById = Object.fromEntries(items.map((i) => [i.id, i]));
+  const byCategory = filter === "all" ? items : items.filter((i) => i.category === filter);
+  const filteredItems =
+    subFilter === "all" ? byCategory : byCategory.filter((i) => i.subcategory === subFilter);
+
+  const handleFilterChange = (catId) => {
+    setFilter(catId);
+    setSubFilter("all");
+  };
+
+  if (!ready) {
+    return (
+      <div style={styles.loadingWrap}>
+        <FontVars />
+        <div style={styles.loadingText}>preparing your closet…</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.app}>
+      <FontVars />
+      <header style={styles.header}>
+        <div style={styles.headerMark}>衣</div>
+        <div>
+          <div style={styles.headerTitle}>Kimono Closet</div>
+          <div style={styles.headerSub}>Florida Kimono Delegation</div>
+        </div>
+      </header>
+
+      <nav style={styles.tabBar}>
+        <TabButton active={tab === "closet"} onClick={() => setTab("closet")} icon={<Grid3x3 size={16} />} label="Closet" />
+        <TabButton active={tab === "coordinate"} onClick={() => setTab("coordinate")} icon={<Layers size={16} />} label="Coordinate" />
+      </nav>
+
+      {saveError && <div style={styles.errorBanner}>{saveError}</div>}
+
+      <main style={styles.main}>
+        {tab === "closet" && (
+          <ClosetView
+            items={filteredItems}
+            filter={filter}
+            setFilter={handleFilterChange}
+            subFilter={subFilter}
+            setSubFilter={setSubFilter}
+            onDelete={deleteItem}
+            onAdd={() => setShowForm(true)}
+          />
+        )}
+        {tab === "coordinate" && (
+          <CoordinateView
+            items={items}
+            itemsById={itemsById}
+            selection={selection}
+            onPick={pickForCategory}
+            outfitName={outfitName}
+            setOutfitName={setOutfitName}
+            onSave={saveOutfit}
+            outfits={outfits}
+            onDeleteOutfit={deleteOutfit}
+          />
+        )}
+      </main>
+
+      {showForm && (
+        <AddItemModal
+          form={form}
+          setForm={setForm}
+          onClose={() => {
+            setShowForm(false);
+            setForm(emptyForm);
+          }}
+          onSave={addItem}
+        />
+      )}
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, icon, label }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...styles.tabButton,
+        color: active ? "var(--gold)" : "var(--ink-soft)",
+        borderBottom: active ? "2px solid var(--gold)" : "2px solid transparent",
+      }}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ClosetView({ items, filter, setFilter, subFilter, setSubFilter, onDelete, onAdd }) {
+  const subOptions = filter !== "all" ? SUBCATEGORY_OPTIONS[filter] : null;
+
+  return (
+    <div>
+      <div style={styles.chipRow}>
+        <Chip active={filter === "all"} onClick={() => setFilter("all")} label="All" />
+        {CATEGORIES.map((c) => (
+          <Chip key={c.id} active={filter === c.id} onClick={() => setFilter(c.id)} label={c.label} />
+        ))}
+      </div>
+
+      {subOptions && (
+        <div style={{ ...styles.chipRow, marginTop: -6 }}>
+          <Chip active={subFilter === "all"} onClick={() => setSubFilter("all")} label={`All ${SUBCATEGORY_FIELD_LABEL[filter].toLowerCase()}s`} />
+          {subOptions.map((s) => (
+            <Chip key={s.id} active={subFilter === s.id} onClick={() => setSubFilter(s.id)} label={s.label} />
+          ))}
+        </div>
+      )}
+
+      {items.length === 0 ? (
+        filter === "all" && subFilter === "all" ? (
+          <EmptyState
+            title="Nothing folded away yet"
+            body="Add your first piece — a kimono, an obi, anything — to start building your closet."
+          />
+        ) : (
+          <EmptyState
+            title="No pieces match this filter"
+            body="Try a different category or type, or add a piece here."
+          />
+        )
+      ) : (
+        <div style={styles.grid}>
+          {items.map((item) => (
+            <TatoushiCard key={item.id} item={item} onDelete={() => onDelete(item.id)} />
+          ))}
+        </div>
+      )}
+
+      <button style={styles.fab} onClick={onAdd} aria-label="Add piece">
+        <Plus size={22} color="var(--washi)" />
+      </button>
+    </div>
+  );
+}
+
+function TatoushiCard({ item, onDelete, selectable, selected, onClick }) {
+  const cat = CATEGORIES.find((c) => c.id === item.category);
+  const sub = (SUBCATEGORY_OPTIONS[item.category] || []).find((s) => s.id === item.subcategory);
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        ...styles.card,
+        cursor: onClick ? "pointer" : "default",
+        outline: selected ? "2px solid var(--gold)" : "none",
+        outlineOffset: 2,
+      }}
+    >
+      <div style={styles.cardFold} />
+      <div style={styles.cardImageWrap}>
+        {item.imageUrl ? (
+          <img src={item.imageUrl} alt={item.name} style={styles.cardImage} />
+        ) : (
+          <div style={{ ...styles.cardSwatch, background: item.color }} />
+        )}
+      </div>
+      <div style={styles.cardBody}>
+        <div style={styles.cardCatRow}>
+          <span style={styles.cardCat}>{cat && cat.jp}</span>
+          <span style={styles.cardCatLabel}>{cat && cat.label}</span>
+        </div>
+        <div style={styles.cardName}>{item.name}</div>
+        {sub && (
+          <div style={styles.cardMeta}>
+            {sub.jp && <span>{sub.jp}</span>} {sub.label}
+          </div>
+        )}
+        {item.notes && <div style={styles.cardNotes}>{item.notes}</div>}
+      </div>
+      {!onClick && (
+        <button style={styles.cardDelete} onClick={onDelete} aria-label="Remove">
+          <Trash2 size={14} />
+        </button>
+      )}
+      {selectable && selected && (
+        <div style={styles.cardCheck}>
+          <Check size={14} color="var(--washi)" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, label }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        ...styles.chip,
+        background: active ? "var(--indigo)" : "transparent",
+        color: active ? "var(--washi)" : "var(--ink-soft)",
+        borderColor: active ? "var(--indigo)" : "var(--line)",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function CoordinateView({ items, itemsById, selection, onPick, outfitName, setOutfitName, onSave, outfits, onDeleteOutfit }) {
+  const chosenIds = Object.values(selection).filter(Boolean);
+
+  return (
+    <div>
+      <div style={styles.sectionLabel}>Build a coordination</div>
+
+      {CATEGORIES.map((cat) => {
+        const catItems = items.filter((i) => i.category === cat.id);
+        if (catItems.length === 0) return null;
+        return (
+          <div key={cat.id} style={styles.slotBlock}>
+            <div style={styles.slotLabel}>
+              <span style={styles.slotJp}>{cat.jp}</span> {cat.label}
+            </div>
+            <div style={styles.slotScroll}>
+              {catItems.map((item) => (
+                <div key={item.id} style={styles.slotCardWrap}>
+                  <TatoushiCard
+                    item={item}
+                    selectable
+                    selected={selection[cat.id] === item.id}
+                    onClick={() => onPick(cat.id, item.id)}
+                  />
                 </div>
-            );
-        }
+              ))}
+            </div>
+          </div>
+        );
+      })}
 
-        // 5. STYLES: Using your updated --sumi-ink and --ivory [4]
-        const styles = {
-            app: { fontFamily: "sans-serif", background: "white", maxWidth: '480px', margin: '0 auto', minHeight: '100vh', position: 'relative', color: '#2B2b2b' },
-            header: { background: "#16324A", color: "white", padding: '20px', display: 'flex', alignItems: 'center', gap: '15px' },
-            headerMark: { border: '1px solid #B8935A', width: '35px', height: '35px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#B8935A', fontWeight: 'bold' },
-            tabBar: { display: 'flex', background: '#FBF8F2', borderBottom: '1px solid #E3DAC9' },
-            tabBtn: { flex: 1, padding: '15px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: '500' },
-            grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' },
-            card: { background: '#F6F1E7', border: '1px solid #E3DAC9', borderRadius: '4px', overflow: 'hidden' },
-            chip: { padding: '6px 12px', borderRadius: '20px', border: '1px solid #E3DAC9', background: 'white', fontSize: '12px' },
-            fab: { position: 'fixed', bottom: '30px', right: '30px', width: '56px', height: '56px', borderRadius: '50%', background: '#16324A', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', cursor: 'pointer' },
-            modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-            modal: { background: 'white', padding: '30px', borderRadius: '12px', width: '80%', maxWidth: '340px' },
-            input: { width: '100%', padding: '12px', marginBottom: '15px', boxSizing: 'border-box', border: '1px solid #ccc', borderRadius: '4px' },
-            saveBtn: { width: '100%', padding: '12px', background: '#16324A', color: 'white', border: 'none', borderRadius: '4px', fontWeight: 'bold' },
-            cancelBtn: { width: '100%', padding: '10px', background: 'none', border: 'none', marginTop: '10px', color: '#666' }
-        };
+      {items.length === 0 && (
+        <EmptyState title="Add pieces first" body="Once your closet has items, you can mix and match them here." />
+      )}
 
-        // 6. RENDER
-        ReactDOM.createRoot(document.getElementById('root')).render(<KimonoCloset />);
-    </script>
+      {chosenIds.length > 0 && (
+        <div style={styles.previewPanel}>
+          <div style={styles.previewLabel}>Preview stack</div>
+          <div style={styles.previewStack}>
+            {chosenIds.map((id) => {
+              const it = itemsById[id];
+              return (
+                <div key={id} style={{ ...styles.previewSwatch, background: it.color }} title={it.name}>
+                  {it.imageUrl && <img src={it.imageUrl} alt={it.name} style={styles.previewImg} />}
+                </div>
+              );
+            })}
+          </div>
+          <div style={styles.saveRow}>
+            <input
+              value={outfitName}
+              onChange={(e) => setOutfitName(e.target.value)}
+              placeholder="Name this coordination…"
+              style={styles.textInput}
+            />
+            <button style={styles.saveBtn} onClick={onSave} disabled={!outfitName.trim()}>
+              Save
+            </button>
+          </div>
+        </div>
+      )}
+
+      {outfits.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <div style={styles.sectionLabel}>Saved coordinations</div>
+          <div style={styles.outfitList}>
+            {outfits.map((o) => (
+              <div key={o.id} style={styles.outfitRow}>
+                <div style={styles.outfitSwatches}>
+                  {o.itemIds.slice(0, 5).map((id) => {
+                    const it = itemsById[id];
+                    if (!it) return null;
+                    return <div key={id} style={{ ...styles.outfitDot, background: it.color }} />;
+                  })}
+                </div>
+                <div style={styles.outfitName}>{o.name}</div>
+                <button style={styles.outfitDelete} onClick={() => onDeleteOutfit(o.id)} aria-label="Delete coordination">
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ title, body }) {
+  return (
+    <div style={styles.emptyState}>
+      <div style={styles.emptyTitle}>{title}</div>
+      <div style={styles.emptyBody}>{body}</div>
+    </div>
+  );
+}
+
+function AddItemModal({ form, setForm, onClose, onSave }) {
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const setCategory = (catId) =>
+    setForm((f) => ({ ...f, category: catId, subcategory: SUBCATEGORY_OPTIONS[catId][0].id }));
+  const subOptions = SUBCATEGORY_OPTIONS[form.category] || [];
+  return (
+    <div style={styles.modalBackdrop} onClick={onClose}>
+      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <div style={styles.modalTitle}>Add a piece</div>
+          <button onClick={onClose} style={styles.modalClose} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+
+        <label style={styles.label}>Category</label>
+        <div style={styles.chipRow}>
+          {CATEGORIES.map((c) => (
+            <Chip key={c.id} active={form.category === c.id} onClick={() => setCategory(c.id)} label={c.label} />
+          ))}
+        </div>
+
+        <label style={styles.label}>Name</label>
+        <input
+          style={styles.textInput}
+          value={form.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="e.g. Navy houmongi with plum blossoms"
+        />
+
+        <label style={styles.label}>{SUBCATEGORY_FIELD_LABEL[form.category]}</label>
+        <div style={styles.chipRow}>
+          {subOptions.map((s) => (
+            <Chip
+              key={s.id}
+              active={form.subcategory === s.id}
+              onClick={() => set("subcategory", s.id)}
+              label={s.label}
+            />
+          ))}
+        </div>
+
+        <div style={styles.formRow}>
+          <div style={{ flex: 1 }}>
+            <label style={styles.label}>Color swatch</label>
+            <input
+              type="color"
+              value={form.color}
+              onChange={(e) => set("color", e.target.value)}
+              style={styles.colorInput}
+            />
+          </div>
+          <div style={{ flex: 2 }}>
+            <label style={styles.label}>Image URL (optional)</label>
+            <input
+              style={styles.textInput}
+              value={form.imageUrl}
+              onChange={(e) => set("imageUrl", e.target.value)}
+              placeholder="https://…"
+            />
+          </div>
+        </div>
+
+        <label style={styles.label}>Notes (motif, occasion, etc.)</label>
+        <textarea
+          style={styles.textArea}
+          value={form.notes}
+          onChange={(e) => set("notes", e.target.value)}
+          rows={2}
+        />
+
+        <button style={styles.modalSave} onClick={onSave} disabled={!form.name.trim()}>
+          Add to closet
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FontVars() {
+  return (
+    <style>{`
+      :root {
+        --indigo: #22304A;
+        --indigo-soft: #3A4C6E;
+        --gold: #B8935A;
+        --gold-bright: #D4AF6A;
+        --washi: #F6F1E7;
+        --paper: #FBF8F2;
+        --ink: #211F1B;
+        --ink-soft: #6B6255;
+        --line: #E3DAC9;
+        --vermillion: #A6503F;
+      }
+      body { background: var(--paper); }
+    `}</style>
+  );
+}
+
+const styles = {
+  app: {
+    fontFamily: "'Zen Kaku Gothic New', sans-serif",
+    background: "var(--paper)",
+    color: "var(--ink)",
+    minHeight: "min(640px, 100vh)",
+    maxWidth: 480,
+    margin: "0 auto",
+    border: "1px solid var(--line)",
+    borderRadius: 14,
+    overflow: "hidden",
+    position: "relative",
+  },
+  loadingWrap: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 300,
+    fontFamily: "'Zen Kaku Gothic New', sans-serif",
+    color: "var(--ink-soft, #6B6255)",
+  },
+  loadingText: { fontSize: 13, letterSpacing: "0.05em" },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "16px 18px",
+    background: "var(--indigo)",
+  },
+  headerMark: {
+    fontFamily: "'Shippori Mincho', serif",
+    fontSize: 22,
+    color: "var(--gold-bright)",
+    border: "1px solid var(--gold)",
+    width: 36,
+    height: 36,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "50%",
+    flexShrink: 0,
+  },
+  headerTitle: {
+    fontFamily: "'Shippori Mincho', serif",
+    fontSize: 18,
+    color: "var(--washi)",
+    fontWeight: 700,
+    lineHeight: 1.2,
+  },
+  headerSub: {
+    fontSize: 11,
+    color: "var(--gold-bright)",
+    letterSpacing: "0.04em",
+    marginTop: 2,
+  },
+  tabBar: {
+    display: "flex",
+    borderBottom: "1px solid var(--line)",
+    background: "var(--paper)",
+  },
+  tabButton: {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "12px 0",
+    background: "none",
+    border: "none",
+    fontFamily: "'Zen Kaku Gothic New', sans-serif",
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: "pointer",
+  },
+  errorBanner: {
+    background: "#F4E4E0",
+    color: "var(--vermillion)",
+    fontSize: 12,
+    padding: "8px 16px",
+  },
+  main: {
+    padding: "16px",
+    minHeight: 320,
+    position: "relative",
+  },
+  chipRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 14,
+  },
+  chip: {
+    padding: "5px 12px",
+    borderRadius: 999,
+    border: "1px solid var(--line)",
+    fontSize: 12,
+    fontFamily: "'Zen Kaku Gothic New', sans-serif",
+    cursor: "pointer",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: 12,
+    paddingBottom: 64,
+  },
+  card: {
+    position: "relative",
+    background: "var(--washi)",
+    border: "1px solid var(--line)",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  cardFold: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 0,
+    height: 0,
+    borderStyle: "solid",
+    borderWidth: "0 18px 18px 0",
+    borderColor: "transparent var(--paper) transparent transparent",
+    filter: "drop-shadow(-1px 1px 1px rgba(0,0,0,0.08))",
+  },
+  cardImageWrap: {
+    width: "100%",
+    height: 90,
+    background: "var(--line)",
+  },
+  cardImage: { width: "100%", height: "100%", objectFit: "cover", display: "block" },
+  cardSwatch: { width: "100%", height: "100%" },
+  cardBody: { padding: "8px 10px 10px" },
+  cardCatRow: { display: "flex", alignItems: "baseline", gap: 5, marginBottom: 2 },
+  cardCat: { fontFamily: "'Shippori Mincho', serif", fontSize: 12, color: "var(--gold)" },
+  cardCatLabel: { fontSize: 10, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.05em" },
+  cardName: { fontSize: 13, fontWeight: 500, lineHeight: 1.3, marginBottom: 3 },
+  cardMeta: { fontSize: 11, color: "var(--ink-soft)" },
+  cardNotes: { fontSize: 11, color: "var(--ink-soft)", marginTop: 4, fontStyle: "italic" },
+  cardDelete: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    background: "rgba(255,255,255,0.85)",
+    border: "none",
+    borderRadius: "50%",
+    width: 24,
+    height: 24,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "var(--vermillion)",
+    cursor: "pointer",
+  },
+  cardCheck: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    background: "var(--gold)",
+    borderRadius: "50%",
+    width: 20,
+    height: 20,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fab: {
+    position: "absolute",
+    bottom: 16,
+    right: 16,
+    width: 48,
+    height: 48,
+    borderRadius: "50%",
+    background: "var(--indigo)",
+    border: "1px solid var(--gold)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 3px 10px rgba(34,48,74,0.35)",
+  },
+  emptyState: {
+    textAlign: "center",
+    padding: "48px 20px",
+    color: "var(--ink-soft)",
+  },
+  emptyTitle: {
+    fontFamily: "'Shippori Mincho', serif",
+    fontSize: 16,
+    color: "var(--ink)",
+    marginBottom: 6,
+  },
+  emptyBody: { fontSize: 13, lineHeight: 1.5 },
+  sectionLabel: {
+    fontFamily: "'Shippori Mincho', serif",
+    fontSize: 14,
+    color: "var(--indigo)",
+    marginBottom: 10,
+  },
+  slotBlock: { marginBottom: 16 },
+  slotLabel: { fontSize: 12, fontWeight: 500, marginBottom: 6, color: "var(--ink-soft)" },
+  slotJp: { fontFamily: "'Shippori Mincho', serif", color: "var(--gold)", marginRight: 4 },
+  slotScroll: {
+    display: "flex",
+    gap: 8,
+    overflowX: "auto",
+    paddingBottom: 4,
+  },
+  slotCardWrap: { minWidth: 120, maxWidth: 120 },
+  previewPanel: {
+    marginTop: 8,
+    padding: 14,
+    background: "var(--washi)",
+    border: "1px solid var(--line)",
+    borderRadius: 8,
+  },
+  previewLabel: { fontSize: 11, color: "var(--ink-soft)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 },
+  previewStack: { display: "flex", gap: -6, marginBottom: 12 },
+  previewSwatch: {
+    width: 34,
+    height: 34,
+    borderRadius: "50%",
+    border: "2px solid var(--paper)",
+    marginLeft: -10,
+    overflow: "hidden",
+    flexShrink: 0,
+  },
+  previewImg: { width: "100%", height: "100%", objectFit: "cover" },
+  saveRow: { display: "flex", gap: 8 },
+  saveBtn: {
+    background: "var(--indigo)",
+    color: "var(--washi)",
+    border: "none",
+    borderRadius: 6,
+    padding: "8px 14px",
+    fontSize: 13,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  outfitList: { display: "flex", flexDirection: "column", gap: 8 },
+  outfitRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    background: "var(--washi)",
+    border: "1px solid var(--line)",
+    borderRadius: 6,
+  },
+  outfitSwatches: { display: "flex" },
+  outfitDot: { width: 16, height: 16, borderRadius: "50%", border: "2px solid var(--paper)", marginLeft: -6 },
+  outfitName: { flex: 1, fontSize: 13, fontWeight: 500 },
+  outfitDelete: { background: "none", border: "none", color: "var(--ink-soft)", cursor: "pointer" },
+  textInput: {
+    width: "100%",
+    padding: "8px 10px",
+    border: "1px solid var(--line)",
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: "'Zen Kaku Gothic New', sans-serif",
+    background: "var(--paper)",
+    color: "var(--ink)",
+    boxSizing: "border-box",
+  },
+  textArea: {
+    width: "100%",
+    padding: "8px 10px",
+    border: "1px solid var(--line)",
+    borderRadius: 6,
+    fontSize: 13,
+    fontFamily: "'Zen Kaku Gothic New', sans-serif",
+    background: "var(--paper)",
+    color: "var(--ink)",
+    boxSizing: "border-box",
+    resize: "vertical",
+    marginBottom: 14,
+  },
+  colorInput: {
+    width: "100%",
+    height: 34,
+    border: "1px solid var(--line)",
+    borderRadius: 6,
+    padding: 2,
+    background: "var(--paper)",
+  },
+  label: {
+    display: "block",
+    fontSize: 11,
+    color: "var(--ink-soft)",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  formRow: { display: "flex", gap: 12, marginBottom: 4 },
+  modalBackdrop: {
+    position: "absolute",
+    inset: 0,
+    background: "rgba(33,31,27,0.5)",
+    display: "flex",
+    alignItems: "flex-end",
+    zIndex: 50,
+  },
+  modal: {
+    background: "var(--paper)",
+    width: "100%",
+    maxHeight: "88%",
+    overflowY: "auto",
+    borderRadius: "14px 14px 0 0",
+    padding: "20px 20px calc(20px + env(safe-area-inset-bottom, 0px))",
+    boxSizing: "border-box",
+  },
+  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
+  modalTitle: { fontFamily: "'Shippori Mincho', serif", fontSize: 17, color: "var(--indigo)" },
+  modalClose: { background: "none", border: "none", cursor: "pointer", color: "var(--ink-soft)" },
+  modalSave: {
+    width: "100%",
+    marginTop: 10,
+    padding: "11px 0",
+    background: "var(--indigo)",
+    color: "var(--washi)",
+    border: "none",
+    borderRadius: 6,
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: "pointer",
+  },
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<KimonoCloset />);
+</script>
 </body>
 </html>
