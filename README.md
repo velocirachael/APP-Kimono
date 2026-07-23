@@ -4,6 +4,10 @@ Building a gui to help Florida Kimono Club members organize their closet and pla
 1) A visual kimono collection management platform that replaces spreadsheets and manual tracking with a digital closet designed specifically for kimono owners.
 2) For kimono collectors with growing collections, this app replaces tedious spreadsheets with a visual, purpose-built kimono closet management system that makes it easy to organize, browse, and rediscover what they own without physically handling garments.
 
+Eyebrow/kicker: The first app built for kimono organization — ever.
+Hook: Stop scrolling through 200 photos or flipping through heavy stacks of tatoushi on the floor. Plan the perfect kimono coordination — before you're standing in front of your closet.
+Hero: Built by kimono wearers, for kimono wearers — finally, a closet app that speaks the language.
+
 Business Model Canvas
 
 Customer Segments: Casual kimono collectors with sizable closets, Collectors with mobility or physical limitations, Kimono sellers, Show-and-tell enthusiasts, Stylists, Influencers and content creators, Value Proposition
